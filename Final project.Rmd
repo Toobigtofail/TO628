@@ -66,13 +66,13 @@ speed$samerace <- factor(x = speed$samerace, levels = c(0,1), labels = c("no", "
 ggplot(speed, aes(gender, fill = gender)) + geom_bar(stat="count")
 
 #race by gender
-ggplot(speed, aes(race, fill=race)) + geom_histogram(stat ="count") + theme(axis.text=element_text(size=12)) + facet_wrap(~gender)
+ggplot(speed, aes(race, fill=race)) + geom_histogram(stat ="count") + theme(axis.text=element_text(size=9), axis.text.x = element_text(angle=90, vjust=0.5, hjust=1)) + facet_wrap(~gender)
 
 #look for other race by race & gender
 
 
 #career by gender
-ggplot(speed, aes(career_c, fill=career_c)) + geom_histogram(stat= "count") + facet_wrap(~gender)
+ggplot(speed, aes(career_c, fill=career_c)) + geom_histogram(stat= "count") + facet_wrap(~gender) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + xlab("Career") + ggtitle("Distribution of Career by Gender")
 
 
 
