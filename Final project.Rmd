@@ -12,6 +12,23 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+```{r}
+suppressPackageStartupMessages(require(plyr))
+suppressPackageStartupMessages(require(dplyr))
+suppressPackageStartupMessages(require(class))
+suppressPackageStartupMessages(require(gmodels))
+suppressPackageStartupMessages(require(stats))
+suppressPackageStartupMessages(require(party))
+suppressPackageStartupMessages(require(magrittr))
+suppressPackageStartupMessages(require(beepr))
+suppressPackageStartupMessages(require(caret))
+suppressPackageStartupMessages(library(kernlab))
+suppressPackageStartupMessages(library(neuralnet))
+suppressPackageStartupMessages(library(randomForest))
+suppressPackageStartupMessages(library(ada))
+
+```
+
 #Introduction
 [Enter narrative about goals, business problem, what we intended to solve and general outline for the project]
 
@@ -74,8 +91,105 @@ ggplot(speed, aes(race, fill=race)) + geom_histogram(stat ="count") + theme(axis
 #career by gender
 ggplot(speed, aes(career_c, fill=career_c)) + geom_histogram(stat= "count") + facet_wrap(~gender) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + xlab("Career") + ggtitle("Distribution of Career by Gender")
 
+```
+
+#Data Cleaning
+```{r}
+sd2 <- speed
+sd2 <- sd2[ , -1] #IID  
+sd2 <- sd2[, -1] #ID  
+sd2 <- sd2[, -2] #IDG
+sd2 <- sd2[, -3] #Wave
+sd2 <- sd2[, -3] #Round     #Potentially add back in 
+sd2 <- sd2[, -3] #Position  #Potentially add back in 
+sd2 <- sd2[, -3] #Postion1  #Potentially add back in
+sd2 <- sd2[, -4] #Partner 
+sd2 <- sd2[, -4] #PID
+sd2 <- sd2[, -26]#Field     
+sd2 <- sd2[, -(27:29)]#Academics
+sd2 <- sd2[,-(30:32)]#Socioeconomic 
+sd2 <- sd2[,-33]#Career
+sd2 <- sd2[,-(59:64)]#What others look for
+sd2 <- sd2[,-(70:74)]#Others perception
+sd2 <- sd2[,-(81:92)]#Data gathered after intitial
+sd2 <- sd2[,(1:79)]
+sd2 <- sd2[,-(70:79)] #Removes Post First Date
+sd2 <- sd2[,-52]#exclude expnum
+
+#Create dummy variables 
+speed$dummy_wave <- ifelse(speed$wave %in% 6:9,1,0)
+
+#drop <- c("iid","id","idg", "condtn","wave", "round", "position","order","partner", "pid","field","from","career","tuition","length","numdat_2")
+#sd2 <- speed[,!(names(speed) %in% drop)]
+sdrandom <- sd2[sample(nrow(sd2), nrow(sd2)),] #Get a random sample since the data is organized by participant
+sdclean <- na.omit(sdrandom) #Remove rows with NA values to create a "clean" set
+```
+Normalize
+```{r}
+#Create Difference variables
+sdclean$age_df <- abs(sdclean$age - sdclean$age_o)
+
+#attr4_1 are inconsistent
+normlist <- c("pf_o_att","pf_o_sin","pf_o_int","pf_o_fun","pf_o_amb","pf_o_sha","attr_o","sinc_o","intel_o","fun_o"    ,"amb_o","shar_o","like_o","prob_o","met_o","attr1_1","sinc1_1","intel1_1","fun1_1","amb1_1","shar1_1","attr4_1","sinc4_1","intel4_1","fun4_1",   "amb4_1","shar4_1","attr2_1","sinc2_1","intel2_1","fun2_1","amb2_1","shar2_1","attr3_1","sinc3_1","fun3_1","intel3_1","amb3_1","attr5_1"  ,"sinc5_1","intel5_1","fun5_1","amb5_1","attr","sinc","intel","fun","amb","shar","like","prob","attr1_s","sinc1_s","intel1_s","fun1_s" ,"amb1_s","shar1_s","attr3_s","sinc3_s","intel3_s","fun3_s","amb3_s","satis_2","attr7_2","sinc7_2","intel7_2","fun7_2","amb7_2","shar7_2"  ,"attr1_2","sinc1_2","fun2_2","amb2_2","shar2_2","attr3_2","sinc3_2","intel3_2","fun3_2","amb3_2","attr5_2","sinc5_2","intel5_2","fun5_2"   ,"amb5_2","attr1_3","sinc1_3","intel1_3","fun1_3","amb1_3","shar1_3","attr7_3","sinc7_3","intel7_3","fun7_3","amb7_3" ,"shar7_3","attr4_3","sinc4_3","intel4_3","fun4_3","amb4_3","shar4_3","attr2_3","sinc2_3","intel2_3","fun2_3","amb2_3","shar2_3"  ,"attr3_3","sinc3_3","intel3_3","fun3_3","amb3_3","attr5_3","sinc5_3","intel5_3","fun5_3","amb5_3", "age_df")
+
+# Rescale the data
+normalize <- function(x) {
+  return((x-min(x)) / (max(x) - min(x)))
+}
+
+sd_norm <- as_data_frame(lapply(sdclean, function(x) {
+  if((class(x[1]) != "numeric") & (class(x[1]) != "integer")) {
+    return (x)
+  }
+  return(normalize(x))
+}))
+```
+
+Specify CV 
+```{r}
+fitControl <- trainControl(## 10-fold CV
+                           method = "cv",
+                           number = 10,
+                           selectionFunction = "oneSE",
+                           verboseIter = T)
+
+```
 
 
+Build a Logistic Model 
 
+```{r}
+# ===================================================
+# Logistic Models
+# ===================================================
+
+run_all_log_models = F
+
+if (run_all_log_models) {
+  log_model <- glm(match ~ ., data = sd_norm, family = "binomial")
+  
+  # Create a step logistic to factor in all of the necessary variables
+  speed_formula <- colnames(sd_norm) %>% 
+    {paste(.[! . %in% "y"], collapse = " + ")} %>% 
+    paste("match ~ ", .) %>% 
+    as.formula()
+  log_model_step <- glm(match~ 1, data = sd_norm, family = binomial)
+  log_model_step <- step(log_model_step, scope = (speed_formula), direction = "forward")
+  # Boosted Logistic Model
+  log_model_boosted <- caret::train(match ~ ., data = sd_norm, 
+                                    method = "LogitBoost", 
+                                    trcontrol = fitControl,
+                                    metric = "Kappa")
+
+  
+  # Save the models
+  save(log_model, file = "log_model.txt")
+  save(log_model_step, file = "log_model_step.txt")
+  save(log_model_boosted, file = "log_model_boosted.txt") 
+} else {
+  load(file = "log_model.txt")
+  load(file = "log_model_step.txt")
+  load(file = "log_model_boosted.txt") 
+}
 ```
 
