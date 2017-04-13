@@ -20,6 +20,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 #attach relevant libraries for project
 library(ggplot2)
+library(aod)
+library(class)
+library(gmodels)
 ```
 
 
@@ -69,13 +72,18 @@ ggplot(speed, aes(gender, fill = gender)) + geom_bar(stat="count")
 ggplot(speed, aes(race, fill=race)) + geom_histogram(stat ="count") + theme(axis.text=element_text(size=9), axis.text.x = element_text(angle=90, vjust=0.5, hjust=1)) + facet_wrap(~gender)
 
 #look for other race by race & gender
+ggplot(speed, aes(race,imprace)) + geom_boxplot() +theme(axis.text=element_text(size=9), axis.text.x = element_text(angle=90, vjust=0.5, hjust=1))
 
 
 #career by gender
 ggplot(speed, aes(career_c, fill=career_c)) + geom_histogram(stat= "count") + facet_wrap(~gender) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + xlab("Career") + ggtitle("Distribution of Career by Gender")
 
 
-
 #This is a test
+```
+s#Run Logistic Model
+
+```{r}
+speed.logmodel <- glm(match ~ ., data= speed, family = "binomial")
 ```
 
