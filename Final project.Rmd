@@ -79,5 +79,6 @@ ggplot(speed, aes(career_c, fill=career_c)) + geom_histogram(stat= "count") + fa
 #how income and age affect match
 speed$income <- as.numeric(gusb(",", "",speed$income))
 ggplot(speed, aes(x=speed$age, y=speed$income, col=match)) + geom_point() + xlab("age") + ylab("income") + ggtitle("How Income and Age Affect Match")
+
 ```
 
