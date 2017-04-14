@@ -156,6 +156,12 @@ fitControl <- trainControl(## 10-fold CV
                            number = 10,
                            selectionFunction = "oneSE",
                            verboseIter = T)
+#Split into test and train sets 
+
+train_indices <- 1:(floor(nrow(sd_norm)*0.8))
+test_indices <- (length(train_indices)+1):nrow(sd_norm)
+train_data <- sd_norm[train_indices,]
+test_data <- sd_norm[test_indices,]
 
 ```
 
@@ -170,17 +176,17 @@ Build a Logistic Model
 run_all_log_models = F
 
 if (run_all_log_models) {
-  log_model <- glm(match ~ ., data = sd_norm, family = "binomial")
+  log_model <- glm(match ~ ., data = train_data, family = "binomial")
 
   # Create a step logistic to factor in all of the necessary variables
   speed_formula <- colnames(sd_norm) %>%
     {paste(.[! . %in% "y"], collapse = " + ")} %>%
     paste("match ~ ", .) %>%
     as.formula()
-  log_model_step <- glm(match~ 1, data = sd_norm, family = binomial)
+  log_model_step <- glm(match~ 1, data = train_data, family = binomial)
   log_model_step <- step(log_model_step, scope = (speed_formula), direction = "forward")
   # Boosted Logistic Model
-  log_model_boosted <- caret::train(match ~ ., data = sd_norm,
+  log_model_boosted <- caret::train(match ~ ., data = train_data,
                                     method = "LogitBoost",
                                     trcontrol = fitControl,
                                     metric = "Kappa")
@@ -196,3 +202,72 @@ if (run_all_log_models) {
   load(file = "log_model_boosted.txt")
 }
 ```
+
+Buid a Tree Based Model
+```{r}
+# ===================================================
+# Tree based methods
+# ===================================================
+
+run_all_tree_models = F
+
+if (run_all_tree_models) {
+  # Basic Classification Tree
+  tree_model <- ctree(match ~ ., data = train_data, 
+                      control = ctree_control(mincriterion = .99))
+  tree_random_forest <- randomForest(match~., data = train_data)
+  midbeep()
+  # Ada Tree
+  tree_ada <- ada(match~., data = train_data)
+  save(tree_model, file = "tree_model.txt")
+  save(tree_random_forest, file = "tree_random_forest.txt")
+  save(tree_ada, file = "tree_ada.txt")
+} else {
+  load(file = "tree_model.txt")
+  load(file = "tree_random_forest.txt")
+  load(file = "tree_ada.txt")
+}
+```
+Performance of the models 
+```{r}
+# ===================================================
+# Prediction
+# ===================================================
+
+accuracy <- function(predicted, trueval, model, hideoutput = F) {
+  stopifnot(length(predicted) == length(trueval))
+  result <- sum(predicted == trueval) / length(predicted)
+  if (!hideoutput) {cat("Model:", model, "had", result, "accuracy\n")}
+  return(result)
+}
+
+# ==========================================================
+# Get the various predictions for the test data
+# ==========================================================
+log_prediction <- predict(log_model, test_data, type = "response") %>% {ifelse(. > 0.5, "yes", "no")} %>% as.factor()
+log_step_prediction <- predict(log_model_step , test_data, type = "response") %>% {ifelse(. > 0.5, "yes", "no")} %>% as.factor()
+log_boosted_prediction <- predict(log_model_boosted, test_data, type = "raw") 
+tree_prediction <- predict(tree_model, test_data)
+tree_random_forest_prediction <- predict(tree_random_forest, test_data)
+tree_ada_prediction <- predict(tree_ada, test_data)
+```
+
+Checking the accuracy of the models
+```{r}
+a1 = accuracy(log_prediction, test_data$match, "Log Prediction Plain", TRUE)
+a2 = accuracy(log_step_prediction, test_data$match, "Log Step", TRUE)
+a3 = accuracy(log_boosted_prediction, test_data$match, "Log Boosted", TRUE)
+a4 = accuracy(tree_prediction, test_data$match, "CTree Regression", TRUE)
+a5 = accuracy(tree_random_forest_prediction, test_data$match, "Random Forest Classification", TRUE)
+a6 = accuracy(tree_ada_prediction, test_data$match, "Ada Boost Classification", TRUE)
+
+acc_predictions = c(a1,a2,a3,a4,a5,a6)
+names = c("Log Prediction Plain","Log Step","Log Boosted","CTree Regression","Random Forest Classification","Ada Boost Classification")
+acc_mat <- data.frame(ModelName = names, accuracy = acc_predictions) %>% print
+```
+
+```{r}
+# Graphic for the accuracy
+dotchart(acc_predictions, labels = names, main = "Accuracy of the models", xlab = "Accuracy")
+```
+
